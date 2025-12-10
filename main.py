@@ -20,10 +20,15 @@ def convert_rawdata_to_python_object(raw_data):
     start_index = raw_data.find('[')
     if start_index == -1:
         logger.error("[CONVERT_RAWDATA_TO_PYTHON_OBJECT] JSON NOT FOUND ")
-        raise Exception("Json not found")
+        raise Exception("JSON NOT FOUND") from e
 
     json_payload = raw_data[start_index : ]
-    return json.loads(json_payload)
+    try:
+        return json.loads(json_payload)
+    except json.JSONDecodeError as e:
+        logger.error("[CONVERT_RAWDATA_TO_PYTHON_OBJECT] JSON DECODE ERROR",exc_info=True)
+        raise Exception("JSON DECODE ERROR") from e
+        
 
 def get_tweet_details(tweet):
     full_text:str=tweet.get('full_text')
@@ -34,21 +39,29 @@ def get_tweet_details(tweet):
 
 
     return Tweet(full_text, tweet_id, is_comment, is_retweet,is_tweet)
+
+def open_file(file_path):
+    try:
+        with open (file_path, 'r', encoding='utf-8') as tweet_doc:
+            raw_data = tweet_doc.read()
+    except Exception as e:
+        logger.error(f"[OPEN_FILE] ERROR: {e}",exc_info=True)
+        raise Exception("CANNOT OPEN FILE") from e
+    return raw_data
     
 def main():
     file_path = "./tweets.js"
     x_handle = os.getenv("X_HANDLE")
     try:
-        with open (file_path, 'r', encoding='utf-8') as f:
-            raw_data = f.read()
-        logger.debug("[MAIN] File sucessfully parsed")
+        raw_data = open_file(file_path)
+        logger.debug("[MAIN] FILE SUCCESSFULLY PARSED")
     except Exception as e:
-        logger.error(f"[MAIN] Error {e}",exc_info=True)
+        logger.error(f"[MAIN] ERROR: {e}",exc_info=True)
 
     try:
         tweets = convert_rawdata_to_python_object(raw_data)
     except Exception as e:
-        logger.error(f"[MAIN] {e}")
+        logger.error(f"[MAIN] ERROR: {e}",exc_info=True)
 
     
     for tweet in tweets[:10]:
