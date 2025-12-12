@@ -51,6 +51,7 @@ def open_file(file_path):
     
 def main():
     file_path = "./tweets.js"
+    forbidden_words = ["rape","forex","crypto"]
     x_handle = os.getenv("X_HANDLE")
     try:
         raw_data = open_file(file_path)
@@ -65,13 +66,14 @@ def main():
 
     
     for tweet in tweets[:10]:
-        # tweet.get('tweet')
-        # for key, value in tweet.get('tweet').items():
-        #     print (f"{key} \t\t {value}",end="\n\n")
+        try:
+            item = tweet.get('tweet')
+        except Exception as e:
+            logger.error(f"[MAIN] ERROR: {e}",exc_info=True)
+            raise Exception("POSSIBLE CHANGE TO TWEET STRUCTURE, NO TWEET FOUND",exc_info=True) as e
 
-        item = tweet.get('tweet')
         details = get_tweet_details(item)
-        print(details)
+
 
 
 
