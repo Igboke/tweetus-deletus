@@ -1,10 +1,13 @@
 import pytest
 import sys
 import os
+from dotenv import load_dotenv
+load_dotenv()
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database import init_db
 from tweets import Tweet
+from worker import Worker,GeminiAnalyzer
 
 @pytest.fixture
 def sample_tweet_archive_content():
@@ -197,3 +200,13 @@ def tweet():
         is_retweet=False,
         is_tweet=True,
     )
+
+@pytest.fixture
+def genai_set_up():
+  api_key = os.getenv("GEMINI_API_KEY")
+  model = os.getenv("GEMINI_MODEL")
+  return GeminiAnalyzer(api_key,model)
+
+@pytest.fixture
+def worker(genai_set_up):
+  return Worker(genai_set_up)
