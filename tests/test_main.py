@@ -38,3 +38,11 @@ def test_get_tweet_details(sample_tweet_archive_doc):
 
     assert isinstance(details, Tweet)
 
+def test_get_tweet_details_raises_error(sample_tweet_archive_doc):
+    with pytest.raises(Exception) as exc_info:
+        content = open_file(sample_tweet_archive_doc)
+        raw_data = convert_rawdata_to_python_object(content)
+        details = get_tweet_details(raw_data[0])
+    
+    assert "NO FULL TEXT FOUND" in str(exc_info.value)
+

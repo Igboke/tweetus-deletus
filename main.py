@@ -16,7 +16,7 @@ class Tweet:
     is_retweet:bool
     is_tweet:bool
 
-def convert_rawdata_to_python_object(raw_data):
+def convert_rawdata_to_python_object(raw_data:str) -> list:
     start_index = raw_data.find('[')
     if start_index == -1:
         logger.error("[CONVERT_RAWDATA_TO_PYTHON_OBJECT] JSON NOT FOUND ")
@@ -30,17 +30,29 @@ def convert_rawdata_to_python_object(raw_data):
         raise Exception("JSON DECODE ERROR") from e
         
 
-def get_tweet_details(tweet):
+def get_tweet_details(tweet:dict) -> Tweet:
+    """Extracts tweet details from a tweet dictionary."""
+    
     full_text:str=tweet.get('full_text')
+    if full_text is None:
+        logger.error("[GET_TWEET_DETAILS] ERROR: NO FULL TEXT FOUND")
+        raise Exception("NO FULL TEXT FOUND")
+
     tweet_id:str=tweet.get('id')
-    is_comment=True if tweet.get('in_reply_to_screen_name',False) else False
+    if tweet_id is None:
+        logger.error("[GET_TWEET_DETAILS] ERROR: NO TWEET ID FOUND")
+        raise Exception("NO TWEET ID FOUND")
+
+    is_comment:bool=True if tweet.get('in_reply_to_screen_name',False) else False
+
     is_retweet:bool= True if full_text.startswith("RT") else False
+
     is_tweet:bool=True if not(is_comment or is_retweet) else False
 
 
     return Tweet(full_text, tweet_id, is_comment, is_retweet,is_tweet)
 
-def open_file(file_path):
+def open_file(file_path:str)->str:
     try:
         with open (file_path, 'r', encoding='utf-8') as tweet_doc:
             raw_data = tweet_doc.read()
@@ -66,13 +78,15 @@ def main():
 
     
     for tweet in tweets[:10]:
-        try:
-            item = tweet.get('tweet')
-        except Exception as e:
-            logger.error(f"[MAIN] ERROR: {e}",exc_info=True)
-            raise Exception("POSSIBLE CHANGE TO TWEET STRUCTURE, NO TWEET FOUND",exc_info=True) as e
+        item= tweet.get('tweet')
+        if item is None:
+            logger.error("[MAIN] ERROR: NO TWEET FOUND")
+            raise Exception("POSSIBLE CHANGE TO TWEET STRUCTURE, NO TWEET FOUND")
 
-        details = get_tweet_details(item)
+        try:
+            details = get_tweet_details(item)
+        except Exception as e:
+            logger.error("[MAIN] ERROR: {e}",exc_info=True)
 
 
 
