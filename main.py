@@ -1,10 +1,12 @@
 import json
+import time
 from dataclasses import dataclass
 import logging
 import os
 from dotenv import load_dotenv
-from database import init_db,add_tweet
+from database import init_db,add_tweet, update_tweet_status, get_tweet_with_lock
 from tweets import get_tweet_details
+from worker import Worker, GeminiAnalyzer, Analyzer
 
 load_dotenv()
 
@@ -32,12 +34,8 @@ def open_file(file_path:str)->str:
         logger.error(f"[OPEN_FILE] ERROR: {e}",exc_info=True)
         raise Exception("CANNOT OPEN FILE") from e
     return raw_data
-    
-def main():
-    file_path = "./tweets.js"
-    forbidden_words = ["rape","forex","crypto"]
-    x_handle = os.getenv("X_HANDLE")
 
+def load_tweets_into_db(file_path:str):
     try:
         init_db()
 
@@ -46,14 +44,14 @@ def main():
         tweets = convert_rawdata_to_python_object(raw_data)
 
     except Exception as e:
-        logger.error(f"[MAIN] ERROR: {e}",exc_info=True)
+        logger.error(f"[LOAD_TWEETS_INTO_DB] ERROR: {e}",exc_info=True)
         return
     
     for tweet in tweets:
         item = tweet.get('tweet')
 
         if item is None:
-            logger.error("[MAIN] ERROR: NO TWEET FOUND")
+            logger.error("[LOAD_TWEETS_INTO_DB] ERROR: NO TWEET FOUND")
             raise Exception("POSSIBLE CHANGE TO TWEET STRUCTURE, NO TWEET FOUND")
 
         try:
@@ -62,8 +60,68 @@ def main():
             add_tweet(details)
 
         except Exception as e:
-            logger.error("[MAIN] ERROR: {e}",exc_info=True)
+            logger.error("[LOAD_TWEETS_INTO_DB] ERROR: {e}",exc_info=True)
             return
+    
+    logger.info("[LOAD_TWEETS_INTO_DB] TWEETS SUCCESSFULLY PARSED")
+
+def start_worker(worker:Analyzer,forbidden_words:list):
+    while True:
+        
+        try:
+            tweet = get_tweet_with_lock()
+
+            if tweet is None:
+                logger.info("[START_WORKER] NO PENDING TWEET FOUND")
+                break
+
+            response = worker.analyze_tweet(tweet.full_text,forbidden_words)
+
+            reason = worker.get_reason(response)
+
+            if response.startswith("YES"):
+                update_tweet_status(tweet.tweet_id,TweetStatus.ANALYZED_DANGEROUS,reason)
+            elif response.startswith("NO"):
+                update_tweet_status(tweet.tweet_id,TweetStatus.ANALYZED_SAFE,reason)
+            else:
+                update_tweet_status(tweet.tweet_id,TweetStatus.FAILED,reason)
+
+            logger.info("[START_WORKER] TWEET ANALYZED")
+
+
+        except KeyboardInterrupt:
+            logger.info("[START_WORKER] INTERRUPTED")
+            if tweet:
+                update_tweet_status(tweet.tweet_id,TweetStatus.FAILED,"Interrupted by User")
+            break
+
+        except Exception as e:
+            logger.error("[START_WORKER] ERROR: {e}",exc_info=True)
+            update_tweet_status(tweet.tweet_id,TweetStatus.FAILED,str(e))
+            time.sleep(2)
+            continue 
+
+    
+    
+def main():
+    file_path = "./tweets.js"
+    forbidden_words = ["rape","forex","crypto"]
+    x_handle = os.getenv("X_HANDLE")
+
+    if not os.getenv("GEMINI_API_KEY"):
+        logger.error("[MAIN] ERROR: NO GEMINI API KEY")
+        raise Exception("NO GEMINI API KEY")
+
+    if not os.getenv("GEMINI_MODEL"):
+        logger.error("[MAIN] ERROR: NO GEMINI MODEL")
+        raise Exception("NO GEMINI MODEL")
+
+    load_tweets_into_db(file_path)
+
+    analyzer = GeminiAnalyzer(os.getenv("GEMINI_API_KEY"),os.getenv("GEMINI_MODEL"))
+    worker = Worker(analyzer)  
+
+    start_worker(worker,forbidden_words)     
 
 if __name__ == "__main__":
     main()

@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS tweets (
     CHECK(status IN ('PENDING', 'PROCESSING', 'ANALYZED_SAFE', 'ANALYZED_DANGEROUS', 'FAILED')),
     retry_count INTEGER DEFAULT 0,
     analysis_reason TEXT,
+    tweet_url TEXT,
     is_comment BOOLEAN,
     is_retweet BOOLEAN,
     is_tweet BOOLEAN,
@@ -85,11 +86,11 @@ def get_tweet(tweet_status:TweetStatus,db_name=DB_NAME):
         logger.error("[GET_TWEET] ERROR: {e}",exc_info=True)
         raise Exception("ERROR GETTING TWEET") from e
 
-def update_tweet_status(tweet_id:str,status:TweetStatus,db_name=DB_NAME):
+def update_tweet_status(tweet_id:str,status:TweetStatus,reason:str,db_name=DB_NAME):
     try:
         with sqlite3.connect(db_name) as connect:
             cursor = connect.cursor()
-            cursor.execute("UPDATE tweets SET status = ?,updated_at = CURRENT_TIMESTAMP WHERE id = ?",(status.value,tweet_id))
+            cursor.execute("UPDATE tweets SET status = ?,updated_at = CURRENT_TIMESTAMP,analysis_reason = ? WHERE id = ?",(status.value,reason,tweet_id))
 
             if cursor.rowcount == 0:
                 logger.error("[UPDATE_TWEET_STATUS] ERROR: TWEET NOT FOUND")
@@ -102,17 +103,17 @@ def update_tweet_status(tweet_id:str,status:TweetStatus,db_name=DB_NAME):
         logger.error("[UPDATE_TWEET_STATUS] ERROR: {e}",exc_info=True)
         raise Exception("ERROR UPDATING TWEET STATUS") from e
 
-def get_tweet_with_lock(db_name=DB_NAME):
+def get_tweet_with_lock(status:TweetStatus=TweetStatus.PENDING,db_name=DB_NAME):
     try:
         with sqlite3.connect(db_name) as connect:
             connect.row_factory = sqlite3.Row
             connect.execute("BEGIN EXCLUSIVE") 
             cursor = connect.cursor()
-            cursor.execute("SELECT * FROM tweets WHERE status = ? LIMIT 1",(TweetStatus.PENDING.value,))
+            cursor.execute("SELECT * FROM tweets WHERE status = ? LIMIT 1",(status.value,))
             row = cursor.fetchone()
 
             if row is None:
-                logger.info("[GET_TWEET_WITH_LOCK] NO PENDING TWEET FOUND")
+                logger.info(f"[GET_TWEET_WITH_LOCK] NO {status.value} TWEET FOUND")
                 connect.rollback()
                 return None
             
