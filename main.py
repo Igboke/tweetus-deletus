@@ -63,6 +63,7 @@ def main():
 
         except Exception as e:
             logger.error("[MAIN] ERROR: {e}",exc_info=True)
+            return
 
 if __name__ == "__main__":
     main()

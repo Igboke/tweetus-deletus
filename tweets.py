@@ -1,7 +1,7 @@
 from dataclasses import dataclass
-from logging import Logger
+import logging
 
-logger = Logger(__name__)
+logger = logging.getLogger(__name__)
 
 @dataclass
 class Tweet:
@@ -10,6 +10,10 @@ class Tweet:
     is_comment:bool
     is_retweet:bool
     is_tweet:bool
+
+    @property
+    def tweet_url(self)->str:
+        return f"https://x.com/%s/status/{self.tweet_id}"
 
 def get_tweet_details(tweet:dict) -> Tweet:
     """Extracts tweet details from a tweet dictionary."""

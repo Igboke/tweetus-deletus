@@ -48,10 +48,12 @@ def add_tweet(tweet:Tweet,db_name=DB_NAME):
             VALUES (?,?,?,?,?)""",
             (tweet.tweet_id,tweet.full_text,tweet.is_comment,tweet.is_retweet,tweet.is_tweet)
             )
+
             if cursor.rowcount == 0:
                 logger.error("[ADD_TWEET] ERROR: TWEET ALREADY EXISTS")
-            logger.debug("[ADD_TWEET] TWEET ADDED")
-            connect.commit()
+
+            logger.info("[ADD_TWEET] TWEET ADDED")
+
     except Exception as e:
         logger.error("[ADD_TWEET] ERROR: {e}",exc_info=True)
         raise Exception("CANNOT ADD TWEET") from e
@@ -81,5 +83,58 @@ def get_tweet(tweet_status:TweetStatus,db_name=DB_NAME):
             
     except Exception as e:
         logger.error("[GET_TWEET] ERROR: {e}",exc_info=True)
-        raise Exception("CANNOT GET TWEET") from e
-    
+        raise Exception("ERROR GETTING TWEET") from e
+
+def update_tweet_status(tweet_id:str,status:TweetStatus,db_name=DB_NAME):
+    try:
+        with sqlite3.connect(db_name) as connect:
+            cursor = connect.cursor()
+            cursor.execute("UPDATE tweets SET status = ?,updated_at = CURRENT_TIMESTAMP WHERE id = ?",(status.value,tweet_id))
+
+            if cursor.rowcount == 0:
+                logger.error("[UPDATE_TWEET_STATUS] ERROR: TWEET NOT FOUND")
+                return False
+
+            logger.info("[UPDATE_TWEET_STATUS] TWEET STATUS UPDATED")
+            return True
+
+    except Exception as e:
+        logger.error("[UPDATE_TWEET_STATUS] ERROR: {e}",exc_info=True)
+        raise Exception("ERROR UPDATING TWEET STATUS") from e
+
+def get_tweet_with_lock(db_name=DB_NAME):
+    try:
+        with sqlite3.connect(db_name) as connect:
+            connect.row_factory = sqlite3.Row
+            connect.execute("BEGIN EXCLUSIVE") 
+            cursor = connect.cursor()
+            cursor.execute("SELECT * FROM tweets WHERE status = ? LIMIT 1",(TweetStatus.PENDING.value,))
+            row = cursor.fetchone()
+
+            if row is None:
+                logger.info("[GET_TWEET_WITH_LOCK] NO PENDING TWEET FOUND")
+                connect.rollback()
+                return None
+            
+            logger.debug("[GET_TWEET_WITH_LOCK] TWEET SUCCESSFULLY FETCHED")
+            
+            tweet_id = row["id"]
+
+            cursor.execute("UPDATE tweets SET status = ?,updated_at = CURRENT_TIMESTAMP WHERE id = ?",(TweetStatus.PROCESSING.value,tweet_id))
+
+            return Tweet(
+                tweet_id=row["id"],
+                full_text=row["full_text"],
+                is_comment=row["is_comment"],
+                is_retweet=row["is_retweet"],
+                is_tweet=row["is_tweet"],
+            )
+
+    except Exception as e:
+        logger.error("[GET_TWEET_WITH_LOCK] ERROR: {e}",exc_info=True)
+        raise Exception("ERROR GETTING TWEET WITH LOCK") from e
+
+            
+
+
+

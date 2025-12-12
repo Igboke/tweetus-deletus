@@ -4,7 +4,7 @@ import sys
 import pytest
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from database import init_db, add_tweet, TweetStatus, get_tweet
+from database import init_db, add_tweet, TweetStatus, get_tweet, get_tweet_with_lock
 
 
 def test_db_conftest_creates_db(db_path):
@@ -16,7 +16,7 @@ def test_add_tweet(tweet,db_path):
     with sqlite3.connect(db_path) as connect:
         connect.row_factory = sqlite3.Row
         cursor = connect.cursor()
-        cursor.execute("SELECT * FROM tweets WHERE id=?", (tweet.tweet_id,))
+        cursor.execute("SELECT * FROM tweets WHERE id=? LIMIT 1", (tweet.tweet_id,))
         row = cursor.fetchone()
     
     assert row is not None
@@ -48,6 +48,24 @@ def test_get_tweet_that_does_not_exist(tweet,db_path):
     add_tweet(tweet,db_name=db_path)
     tweet = get_tweet(TweetStatus.FAILED,db_name=db_path)
     assert tweet is None
+
+def test_get_tweet_with_lock(tweet,db_path):
+    add_tweet(tweet,db_name=db_path)
+    tweet = get_tweet_with_lock(db_name=db_path)
+    assert tweet is not None
+    assert tweet.tweet_id == tweet.tweet_id
+    assert tweet.full_text == tweet.full_text
+    
+    with sqlite3.connect(db_path) as connect:
+        connect.row_factory = sqlite3.Row
+        cursor = connect.cursor()
+        cursor.execute("SELECT * FROM tweets WHERE id=? LIMIT 1", (tweet.tweet_id,))
+        row = cursor.fetchone()
+    
+    assert row is not None
+    assert row["status"] == TweetStatus.PROCESSING.value
+    
+        
 
 
 
