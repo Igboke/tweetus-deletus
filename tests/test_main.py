@@ -3,7 +3,8 @@ import os
 import pytest
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from main import convert_rawdata_to_python_object, get_tweet_details, Tweet, open_file
+from main import convert_rawdata_to_python_object, open_file
+from tweets import get_tweet_details, Tweet
 
 def test_open_file(sample_tweet_archive_doc, sample_tweet_archive_content):
     content = open_file(sample_tweet_archive_doc)

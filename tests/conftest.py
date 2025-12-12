@@ -1,4 +1,10 @@
 import pytest
+import sys
+import os
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from database import init_db
+from tweets import Tweet
 
 @pytest.fixture
 def sample_tweet_archive_content():
@@ -175,3 +181,19 @@ def sample_tweet_archive_doc_bad_json(tmp_path,sample_bad_tweet_archive_content)
     tweet_file_path = tmp_path/"tweets.js"
     tweet_file_path.write_text(sample_bad_tweet_archive_content,encoding='utf-8')
     return tweet_file_path
+
+@pytest.fixture
+def db_path(tmp_path):
+  db_path = tmp_path / "test_tweet.db"
+  init_db(db_path)
+  yield db_path
+
+@pytest.fixture
+def tweet():
+  return Tweet(
+        tweet_id="1234567890",
+        full_text="This is a test tweet",
+        is_comment=False,
+        is_retweet=False,
+        is_tweet=True,
+    )

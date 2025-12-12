@@ -3,18 +3,12 @@ from dataclasses import dataclass
 import logging
 import os
 from dotenv import load_dotenv
+from database import init_db,add_tweet
+from tweets import get_tweet_details
 
 load_dotenv()
 
 logger = logging.getLogger(__name__)
-
-@dataclass
-class Tweet:
-    full_text:str
-    tweet_id:str
-    is_comment:bool
-    is_retweet:bool
-    is_tweet:bool
 
 def convert_rawdata_to_python_object(raw_data:str) -> list:
     start_index = raw_data.find('[')
@@ -29,33 +23,11 @@ def convert_rawdata_to_python_object(raw_data:str) -> list:
         logger.error("[CONVERT_RAWDATA_TO_PYTHON_OBJECT] JSON DECODE ERROR",exc_info=True)
         raise Exception("JSON DECODE ERROR") from e
         
-
-def get_tweet_details(tweet:dict) -> Tweet:
-    """Extracts tweet details from a tweet dictionary."""
-    
-    full_text:str=tweet.get('full_text')
-    if full_text is None:
-        logger.error("[GET_TWEET_DETAILS] ERROR: NO FULL TEXT FOUND")
-        raise Exception("NO FULL TEXT FOUND")
-
-    tweet_id:str=tweet.get('id')
-    if tweet_id is None:
-        logger.error("[GET_TWEET_DETAILS] ERROR: NO TWEET ID FOUND")
-        raise Exception("NO TWEET ID FOUND")
-
-    is_comment:bool=True if tweet.get('in_reply_to_screen_name',False) else False
-
-    is_retweet:bool= True if full_text.startswith("RT") else False
-
-    is_tweet:bool=True if not(is_comment or is_retweet) else False
-
-
-    return Tweet(full_text, tweet_id, is_comment, is_retweet,is_tweet)
-
 def open_file(file_path:str)->str:
     try:
         with open (file_path, 'r', encoding='utf-8') as tweet_doc:
             raw_data = tweet_doc.read()
+            logger.debug("[OPEN_FILE] FILE SUCCESSFULLY PARSED")
     except Exception as e:
         logger.error(f"[OPEN_FILE] ERROR: {e}",exc_info=True)
         raise Exception("CANNOT OPEN FILE") from e
@@ -65,33 +37,32 @@ def main():
     file_path = "./tweets.js"
     forbidden_words = ["rape","forex","crypto"]
     x_handle = os.getenv("X_HANDLE")
+
     try:
+        init_db()
+
         raw_data = open_file(file_path)
-        logger.debug("[MAIN] FILE SUCCESSFULLY PARSED")
-    except Exception as e:
-        logger.error(f"[MAIN] ERROR: {e}",exc_info=True)
 
-    try:
         tweets = convert_rawdata_to_python_object(raw_data)
+
     except Exception as e:
         logger.error(f"[MAIN] ERROR: {e}",exc_info=True)
-
+        return
     
-    for tweet in tweets[:10]:
-        item= tweet.get('tweet')
+    for tweet in tweets:
+        item = tweet.get('tweet')
+
         if item is None:
             logger.error("[MAIN] ERROR: NO TWEET FOUND")
             raise Exception("POSSIBLE CHANGE TO TWEET STRUCTURE, NO TWEET FOUND")
 
         try:
             details = get_tweet_details(item)
+
+            add_tweet(details)
+
         except Exception as e:
             logger.error("[MAIN] ERROR: {e}",exc_info=True)
-
-
-
-
-
 
 if __name__ == "__main__":
     main()
