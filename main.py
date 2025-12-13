@@ -3,12 +3,19 @@ import time
 from dataclasses import dataclass
 import logging
 import os
+import sys
+import argparse
 from dotenv import load_dotenv
 from database import init_db,add_tweet, update_tweet_status, get_tweet_with_lock, mark_tweet_as_failed
 from tweets import get_tweet_details
 from worker import Worker, GeminiAnalyzer, Analyzer
 
 load_dotenv()
+
+logging.basicConfig(
+    level=logging.INFO, 
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
 logger = logging.getLogger(__name__)
 
@@ -35,9 +42,9 @@ def open_file(file_path:str)->str:
         raise Exception("CANNOT OPEN FILE") from e
     return raw_data
 
-def load_tweets_into_db(file_path:str,x_handle:str):
+def load_tweets_into_db(file_path:str,x_handle:str,db_name:str):
     try:
-        init_db()
+        init_db(db_name)
 
         raw_data = open_file(file_path)
 
@@ -58,8 +65,8 @@ def load_tweets_into_db(file_path:str,x_handle:str):
             details = get_tweet_details(item)
 
             tweet_url = details.tweet_url % x_handle
-            
-            add_tweet(details,tweet_url)
+
+            add_tweet(details,tweet_url,db_name)
 
         except Exception as e:
             logger.error("[LOAD_TWEETS_INTO_DB] ERROR: {e}",exc_info=True)
@@ -67,11 +74,14 @@ def load_tweets_into_db(file_path:str,x_handle:str):
     
     logger.info("[LOAD_TWEETS_INTO_DB] TWEETS SUCCESSFULLY PARSED")
 
-def start_worker(worker:Analyzer,forbidden_words:list):
+def start_worker(worker:Analyzer,forbidden_words:list,db_name:str,retry_failed:bool=False):
     while True:
         
         try:
-            tweet = get_tweet_with_lock()
+            if retry_failed:
+                tweet = get_tweet_with_lock(TweetStatus.FAILED,db_name=db_name)
+            else:
+                tweet = get_tweet_with_lock(db_name=db_name)
 
             if tweet is None:
                 logger.info("[START_WORKER] NO PENDING TWEET FOUND")
@@ -82,11 +92,11 @@ def start_worker(worker:Analyzer,forbidden_words:list):
             reason = worker.get_reason(response)
 
             if response.startswith("YES"):
-                update_tweet_status(tweet.tweet_id,TweetStatus.ANALYZED_DANGEROUS,reason)
+                update_tweet_status(tweet.tweet_id,TweetStatus.ANALYZED_DANGEROUS,reason,db_name=db_name)
             elif response.startswith("NO"):
-                update_tweet_status(tweet.tweet_id,TweetStatus.ANALYZED_SAFE,reason)
+                update_tweet_status(tweet.tweet_id,TweetStatus.ANALYZED_SAFE,reason,db_name=db_name)
             else:
-                update_tweet_status(tweet.tweet_id,TweetStatus.FAILED,reason)
+                update_tweet_status(tweet.tweet_id,TweetStatus.FAILED,reason,db_name=db_name)
 
             logger.info("[START_WORKER] TWEET ANALYZED")
 
@@ -94,40 +104,66 @@ def start_worker(worker:Analyzer,forbidden_words:list):
         except KeyboardInterrupt:
             logger.info("[START_WORKER] INTERRUPTED")
             if tweet:
-                mark_tweet_as_failed(tweet.tweet_id,"Interrupted by User")
+                mark_tweet_as_failed(tweet.tweet_id,"Interrupted by User",db_name=db_name)
             break
 
         except Exception as e:
             logger.error("[START_WORKER] ERROR: {e}",exc_info=True)
-            mark_tweet_as_failed(tweet.tweet_id,str(e))
+            mark_tweet_as_failed(tweet.tweet_id,str(e),db_name=db_name)
             time.sleep(2)
             continue 
 
     
     
 def main():
-    file_path = "./tweets.js"
-    forbidden_words = ["rape","forex","crypto"]
-    x_handle = os.getenv("X_HANDLE")
+    parser = argparse.ArgumentParser(description="Tweetus Deletus: The Tweet Cleaner")
 
-    if not os.getenv("GEMINI_API_KEY"):
-        logger.error("[MAIN] ERROR: NO GEMINI API KEY")
-        raise Exception("NO GEMINI API KEY")
+    subparsers = parser.add_subparsers(dest="command", required=True)
 
-    if not os.getenv("GEMINI_MODEL"):
-        logger.error("[MAIN] ERROR: NO GEMINI MODEL")
-        raise Exception("NO GEMINI MODEL")
+    load_parser = subparsers.add_parser("load", help="Load tweets from JS file to DB")
+    load_parser.add_argument("file", help="Path to tweets.js file")
+    load_parser.add_argument("--handle", help="Twitter handle (overrides .env)")
+    load_parser.add_argument("--db", default='tweets.db', help="Database file path")
 
-    if not os.getenv("X_HANDLE"):
-        logger.error("[MAIN] ERROR: NO X_HANDLE")
-        raise Exception("NO X_HANDLE")
+    worker_parser = subparsers.add_parser("worker", help="Start worker to analyze tweets")
+    worker_parser.add_argument("--db", default='tweets.db', help="Database file path")
+    worker_parser.add_argument('forbidden', help='Comma-separated forbidden words')
+    worker_parser.add_argument('--retry', action='store_true', help='Retry FAILED tweets')
 
-    load_tweets_into_db(file_path,x_handle)
+    generate_report_parser = subparsers.add_parser("report", help="Generate report of tweets")
+    generate_report_parser.add_argument("--db", default='tweets.db', help="Database file path")
+    generate_report_parser.add_argument("--output", default='report.csv', help="Output file path")
 
-    analyzer = GeminiAnalyzer(os.getenv("GEMINI_API_KEY"),os.getenv("GEMINI_MODEL"))
-    worker = Worker(analyzer)  
+    args = parser.parse_args()
 
-    start_worker(worker,forbidden_words)     
+    if args.command == "load":
+        handle = args.handle or os.getenv("X_HANDLE")
+
+        if not handle:
+            logger.error("[MAIN] ERROR: NO HANDLE PROVIDED! SET X_HANDLE IN .env OR USE --handle")
+            sys.exit(1)
+        
+        logger.info(f"[MAIN] INFO: LOADING TWEETS FOR @{handle} INTO {args.db}")
+
+        load_tweets_into_db(args.file, handle, args.db)
+    
+    elif args.command == "worker":
+
+        GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+        GEMINI_MODEL = os.getenv("GEMINI_MODEL","gemini-2.5-flash")
+
+        if not GEMINI_API_KEY:
+            logger.critical("[MAIN] ERROR: NO GEMINI API KEY SET IN .env")
+            sys.exit(1)
+
+        forbidden_words = args.forbidden.split(",")
+
+        analyzer = GeminiAnalyzer(GEMINI_API_KEY,GEMINI_MODEL)
+        worker = Worker(analyzer) 
+
+        start_worker(worker, forbidden_words,args.db,args.retry)
+        
+   
 
 if __name__ == "__main__":
     main()
