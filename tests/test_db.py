@@ -27,6 +27,24 @@ def test_add_tweet(tweet,db_path):
     assert row["is_retweet"] == tweet.is_retweet
     assert row["is_tweet"] == tweet.is_tweet
 
+def test_add_tweet_with_url(tweet,tweet_url,db_path):
+    add_tweet(tweet,tweet_url=tweet_url,db_name=db_path)
+    
+    with sqlite3.connect(db_path) as connect:
+        connect.row_factory = sqlite3.Row
+        cursor = connect.cursor()
+        cursor.execute("SELECT * FROM tweets WHERE id=? LIMIT 1", (tweet.tweet_id,))
+        row = cursor.fetchone()
+    
+    assert row is not None
+    assert row["id"] == tweet.tweet_id
+    assert row["full_text"] == tweet.full_text 
+    assert row["status"] == TweetStatus.PENDING.value 
+    assert row["is_comment"] == tweet.is_comment
+    assert row["is_retweet"] == tweet.is_retweet
+    assert row["is_tweet"] == tweet.is_tweet
+    assert row["tweet_url"] == tweet_url
+
 def test_add_multiple_tweets_with_same_id(tweet,db_path):
     add_tweet(tweet,db_name=db_path)
     add_tweet(tweet,db_name=db_path)

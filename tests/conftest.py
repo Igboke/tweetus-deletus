@@ -202,6 +202,11 @@ def tweet():
     )
 
 @pytest.fixture
+def tweet_url(tweet):
+  tweet_url = tweet.tweet_url % "test_handle"
+  return tweet_url
+
+@pytest.fixture
 def genai_set_up():
   api_key = os.getenv("GEMINI_API_KEY")
   model = os.getenv("GEMINI_MODEL")
