@@ -39,6 +39,7 @@ class Worker:
     def analyze_tweet(self,tweet:str,content:str)->str:
         try:
             response = self.analyzer.analyze_tweet(tweet,content)
+            logger.info("[ANALYZE_TWEET] TWEET ANALYZED")
             return response
         except Exception as e:
             logger.error("[ANALYZE_TWEET] ERROR: {e}",exc_info=True)
@@ -47,8 +48,10 @@ class Worker:
     def get_reason(self,response:str)->str:
         try:
             if response.startswith("YES"):
+                logger.info("[GET_REASON] REASON RETRIEVED")
                 return response.split("YES")[1].strip()
             else:
+                logger.info("[GET_REASON] REASON RETRIEVED")
                 return response.split("NO")[1].strip()
         except Exception as e:
             logger.error("[GET_REASON] ERROR: {e}",exc_info=True)

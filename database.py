@@ -1,7 +1,7 @@
 import sqlite3
 import logging
 from enum import Enum
-from tweets import Tweet
+from tweets import Tweet, TweetReport
 
 logger = logging.getLogger(__name__)
 DB_NAME = "tweets.db"
@@ -96,7 +96,7 @@ def update_tweet_status(tweet_id:str,status:TweetStatus,reason:str,db_name=DB_NA
                 logger.error("[UPDATE_TWEET_STATUS] ERROR: TWEET NOT FOUND")
                 return False
 
-            logger.info("[UPDATE_TWEET_STATUS] TWEET STATUS UPDATED")
+            logger.info(f"[UPDATE_TWEET_STATUS] TWEET STATUS UPDATED TO {status.value}")
             return True
 
     except Exception as e:
@@ -121,11 +121,12 @@ def get_tweet_with_lock(status:TweetStatus=TweetStatus.PENDING,db_name=DB_NAME):
                 connect.rollback()
                 return None
             
-            logger.debug("[GET_TWEET_WITH_LOCK] TWEET SUCCESSFULLY FETCHED")
+            logger.info("[GET_TWEET_WITH_LOCK] TWEET SUCCESSFULLY FETCHED")
             
             tweet_id = row["id"]
 
             cursor.execute("UPDATE tweets SET status = ?,updated_at = CURRENT_TIMESTAMP WHERE id = ?",(TweetStatus.PROCESSING.value,tweet_id))
+            logger.info("[GET_TWEET_WITH_LOCK] TWEET STATUS UPDATED TO PROCESSING")
 
             return Tweet(
                 tweet_id=row["id"],
@@ -162,4 +163,35 @@ def mark_tweet_as_failed(tweet_id:str,reason:str,db_name=DB_NAME):
             
 
 
-
+def get_tweet_reports(status:TweetStatus, db_name=DB_NAME) -> list[TweetReport]:
+    try:
+        with sqlite3.connect(db_name) as connect:
+            connect.row_factory = sqlite3.Row
+            cursor = connect.cursor()
+            
+            cursor.execute("SELECT * FROM tweets WHERE status = ?", (status.value,))
+            rows = cursor.fetchall()
+            
+            if not rows:
+                logger.info(f"[GET_TWEET_REPORTS] NO TWEETS FOUND WITH STATUS {status.value}")
+                return []
+                
+            reports = []
+            for row in rows:
+                reports.append(TweetReport(
+                    tweet_id=row["id"],
+                    full_text=row["full_text"],
+                    status=row["status"],
+                    analysis_reason=row["analysis_reason"] or "",
+                    tweet_url=row["tweet_url"] or "",             
+                    retry_count=row["retry_count"],
+                    is_comment=bool(row["is_comment"]),
+                    is_retweet=bool(row["is_retweet"])
+                ))
+            
+            logger.info(f"[GET_TWEET_REPORTS] FETCHED {len(reports)} REPORTS")
+            return reports
+            
+    except Exception as e:
+        logger.error(f"[GET_TWEET_REPORTS] ERROR: {e}", exc_info=True)
+        raise Exception("ERROR GETTING TWEET REPORTS") from e

@@ -15,6 +15,17 @@ class Tweet:
     def tweet_url(self)->str:
         return f"https://x.com/%s/status/{self.tweet_id}"
 
+@dataclass
+class TweetReport:
+    tweet_id:str
+    full_text:str
+    status:str
+    analysis_reason:str
+    tweet_url:str
+    retry_count:int
+    is_comment:bool
+    is_retweet:bool
+
 def get_tweet_details(tweet:dict) -> Tweet:
     """Extracts tweet details from a tweet dictionary."""
 

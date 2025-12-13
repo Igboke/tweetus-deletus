@@ -6,7 +6,7 @@ import os
 import sys
 import argparse
 from dotenv import load_dotenv
-from database import init_db,add_tweet, update_tweet_status, get_tweet_with_lock, mark_tweet_as_failed
+from database import init_db,add_tweet, update_tweet_status, get_tweet_with_lock, mark_tweet_as_failed, get_tweet_reports, TweetStatus
 from tweets import get_tweet_details
 from worker import Worker, GeminiAnalyzer, Analyzer
 
@@ -98,7 +98,8 @@ def start_worker(worker:Analyzer,forbidden_words:list,db_name:str,retry_failed:b
             else:
                 update_tweet_status(tweet.tweet_id,TweetStatus.FAILED,reason,db_name=db_name)
 
-            logger.info("[START_WORKER] TWEET ANALYZED")
+            logger.info("[START_WORKER] WORKER COMPLETED ANALYSIS")
+            time.sleep(15)
 
 
         except KeyboardInterrupt:
@@ -113,6 +114,34 @@ def start_worker(worker:Analyzer,forbidden_words:list,db_name:str,retry_failed:b
             time.sleep(2)
             continue 
 
+def generate_report(db_name:str,output_path:str):
+    try:
+        tweets = get_tweet_reports(TweetStatus.ANALYZED_DANGEROUS, db_name=db_name)
+        
+        if not tweets:
+            logger.info("[GENERATE_REPORT] NO DANGEROUS TWEETS FOUND TO REPORT!")
+            return
+
+        with open(output_path, 'w', newline='', encoding='utf-8') as csvfile:
+            fieldnames = ['tweet_id', 'status', 'analysis_reason', 'tweet_url', 'retry_count', 'full_text']
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
+            writer.writeheader()
+            for tweet in tweets:
+                writer.writerow({
+                    'tweet_id': tweet.tweet_id,
+                    'status': tweet.status,
+                    'analysis_reason': tweet.analysis_reason,
+                    'tweet_url': tweet.tweet_url,
+                    'retry_count': tweet.retry_count,
+                    'full_text': tweet.full_text
+                })
+                
+        logger.info(f"[GENERATE_REPORT] REPORT GENERATED AT {output_path} WITH {len(tweets)} TWEETS.")
+        
+    except Exception as e:
+        logger.error(f"[GENERATE_REPORT] ERROR: {e}",exc_info=True)
+        return
     
     
 def main():
@@ -162,6 +191,9 @@ def main():
         worker = Worker(analyzer) 
 
         start_worker(worker, forbidden_words,args.db,args.retry)
+
+    elif args.command == "report":
+        generate_report(args.db, args.output)
         
    
 
