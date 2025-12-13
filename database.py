@@ -40,14 +40,14 @@ def init_db(db_name=DB_NAME):
         logger.error("[INIT_DB] ERROR: {e}",exc_info=True)
         raise Exception("CANNOT INIT DB") from e
 
-def add_tweet(tweet:Tweet,db_name=DB_NAME):
+def add_tweet(tweet:Tweet,tweet_url:str='',db_name=DB_NAME):
     try:
         with sqlite3.connect(db_name) as connect:
             cursor = connect.cursor()
             cursor.execute("""INSERT OR IGNORE INTO tweets 
-            (id,full_text,is_comment,is_retweet,is_tweet) 
-            VALUES (?,?,?,?,?)""",
-            (tweet.tweet_id,tweet.full_text,tweet.is_comment,tweet.is_retweet,tweet.is_tweet)
+            (id,full_text,is_comment,is_retweet,is_tweet,tweet_url) 
+            VALUES (?,?,?,?,?,?)""",
+            (tweet.tweet_id,tweet.full_text,tweet.is_comment,tweet.is_retweet,tweet.is_tweet,tweet_url)
             )
 
             if cursor.rowcount == 0:
@@ -109,7 +109,11 @@ def get_tweet_with_lock(status:TweetStatus=TweetStatus.PENDING,db_name=DB_NAME):
             connect.row_factory = sqlite3.Row
             connect.execute("BEGIN EXCLUSIVE") 
             cursor = connect.cursor()
-            cursor.execute("SELECT * FROM tweets WHERE status = ? LIMIT 1",(status.value,))
+
+            if status == TweetStatus.FAILED:
+                cursor.execute("SELECT * FROM tweets WHERE status = 'FAILED' AND retry_count < 3 LIMIT 1")
+            else:
+                cursor.execute("SELECT * FROM tweets WHERE status = ? LIMIT 1",(status.value,))
             row = cursor.fetchone()
 
             if row is None:
@@ -134,6 +138,26 @@ def get_tweet_with_lock(status:TweetStatus=TweetStatus.PENDING,db_name=DB_NAME):
     except Exception as e:
         logger.error("[GET_TWEET_WITH_LOCK] ERROR: {e}",exc_info=True)
         raise Exception("ERROR GETTING TWEET WITH LOCK") from e
+
+def mark_tweet_as_failed(tweet_id:str,reason:str,db_name=DB_NAME):
+    try:
+        with sqlite3.connect(db_name) as connect:
+            cursor = connect.cursor()
+            cursor.execute("""UPDATE tweets SET status = ?, 
+            retry_count = retry_count + 1, analysis_reason = ?, 
+            updated_at = CURRENT_TIMESTAMP WHERE id = ?""",
+            (TweetStatus.FAILED.value,reason,tweet_id))
+
+            if cursor.rowcount == 0:
+                logger.error("[MARK_TWEET_AS_FAILED] ERROR: TWEET NOT FOUND")
+                return False
+
+            logger.info("[MARK_TWEET_AS_FAILED] TWEET MARKED AS FAILED")
+            return True
+
+    except Exception as e:
+        logger.error("[MARK_TWEET_AS_FAILED] ERROR: {e}",exc_info=True)
+        raise Exception("ERROR MARKING TWEET AS FAILED") from e
 
             
 

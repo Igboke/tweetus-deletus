@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import logging
 import os
 from dotenv import load_dotenv
-from database import init_db,add_tweet, update_tweet_status, get_tweet_with_lock
+from database import init_db,add_tweet, update_tweet_status, get_tweet_with_lock, mark_tweet_as_failed
 from tweets import get_tweet_details
 from worker import Worker, GeminiAnalyzer, Analyzer
 
@@ -35,7 +35,7 @@ def open_file(file_path:str)->str:
         raise Exception("CANNOT OPEN FILE") from e
     return raw_data
 
-def load_tweets_into_db(file_path:str):
+def load_tweets_into_db(file_path:str,x_handle:str):
     try:
         init_db()
 
@@ -57,7 +57,9 @@ def load_tweets_into_db(file_path:str):
         try:
             details = get_tweet_details(item)
 
-            add_tweet(details)
+            tweet_url = details.tweet_url % x_handle
+            
+            add_tweet(details,tweet_url)
 
         except Exception as e:
             logger.error("[LOAD_TWEETS_INTO_DB] ERROR: {e}",exc_info=True)
@@ -92,12 +94,12 @@ def start_worker(worker:Analyzer,forbidden_words:list):
         except KeyboardInterrupt:
             logger.info("[START_WORKER] INTERRUPTED")
             if tweet:
-                update_tweet_status(tweet.tweet_id,TweetStatus.FAILED,"Interrupted by User")
+                mark_tweet_as_failed(tweet.tweet_id,"Interrupted by User")
             break
 
         except Exception as e:
             logger.error("[START_WORKER] ERROR: {e}",exc_info=True)
-            update_tweet_status(tweet.tweet_id,TweetStatus.FAILED,str(e))
+            mark_tweet_as_failed(tweet.tweet_id,str(e))
             time.sleep(2)
             continue 
 
@@ -116,7 +118,11 @@ def main():
         logger.error("[MAIN] ERROR: NO GEMINI MODEL")
         raise Exception("NO GEMINI MODEL")
 
-    load_tweets_into_db(file_path)
+    if not os.getenv("X_HANDLE"):
+        logger.error("[MAIN] ERROR: NO X_HANDLE")
+        raise Exception("NO X_HANDLE")
+
+    load_tweets_into_db(file_path,x_handle)
 
     analyzer = GeminiAnalyzer(os.getenv("GEMINI_API_KEY"),os.getenv("GEMINI_MODEL"))
     worker = Worker(analyzer)  
