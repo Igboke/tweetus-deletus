@@ -6,11 +6,11 @@ import os
 import sys
 import argparse
 from dotenv import load_dotenv
-from src.database import get_tweet_reports, TweetStatus
-from src.tweets import get_tweet_details
+from src.database import TweetStatus
 from src.worker import Worker, GeminiAnalyzer, Analyzer
 from src.loader import TweetLoader
 from src.exceptions import LoaderError
+from src.reporter import CSVReportGenerator
 import csv
 
 load_dotenv()
@@ -20,37 +20,7 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
-logger = logging.getLogger(__name__)
-
-def generate_report(db_name:str,output_path:str):
-    try:
-        tweets = get_tweet_reports(TweetStatus.ANALYZED_DANGEROUS, db_name=db_name)
-        
-        if not tweets:
-            logger.info("[GENERATE_REPORT] NO DANGEROUS TWEETS FOUND TO REPORT!")
-            return
-
-        with open(output_path, 'w', newline='', encoding='utf-8') as csvfile:
-            fieldnames = ['tweet_id', 'status', 'analysis_reason', 'tweet_url', 'retry_count', 'full_text']
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-
-            writer.writeheader()
-            for tweet in tweets:
-                writer.writerow({
-                    'tweet_id': tweet.tweet_id,
-                    'status': tweet.status,
-                    'analysis_reason': tweet.analysis_reason,
-                    'tweet_url': tweet.tweet_url,
-                    'retry_count': tweet.retry_count,
-                    'full_text': tweet.full_text
-                })
-                
-        logger.info(f"[GENERATE_REPORT] REPORT GENERATED AT {output_path} WITH {len(tweets)} TWEETS.")
-        
-    except Exception as e:
-        logger.error(f"[GENERATE_REPORT] ERROR: {e}",exc_info=True)
-        return
-    
+logger = logging.getLogger(__name__)  
     
 def main():
     parser = argparse.ArgumentParser(description="Tweetus Deletus: The Tweet Cleaner")
@@ -70,6 +40,7 @@ def main():
     generate_report_parser = subparsers.add_parser("report", help="Generate report of tweets")
     generate_report_parser.add_argument("--db", default='tweets.db', help="Database file path")
     generate_report_parser.add_argument("--output", default='report.csv', help="Output file path")
+    generate_report_parser.add_argument("--status", choices=[s.name for s in TweetStatus], default='ANALYZED_DANGEROUS', help="Filter tweets by status (default: ANALYZED_DANGEROUS)")
 
     args = parser.parse_args()
 
@@ -106,7 +77,14 @@ def main():
         worker.run(forbidden_words, args.retry)
 
     elif args.command == "report":
-        generate_report(args.db, args.output)
+        try:
+            status_enum = TweetStatus[args.status]
+        except KeyError:
+            logger.error(f"[MAIN] INVALID STATUS: {args.status}")
+            sys.exit(1)
+
+        reporter = CSVReportGenerator(args.db)
+        reporter.generate(status_enum, args.output)
         
    
 
