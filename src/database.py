@@ -1,7 +1,7 @@
 import sqlite3
 import logging
 from enum import Enum
-from tweets import Tweet, TweetReport
+from src.tweets import Tweet, TweetReport
 
 logger = logging.getLogger(__name__)
 DB_NAME = "tweets.db"

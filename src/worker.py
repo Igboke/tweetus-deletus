@@ -3,8 +3,8 @@ import time
 from abc import ABC, abstractmethod
 import google.generativeai as genai
 from google.api_core import exceptions
-from database import get_tweet_with_lock, update_tweet_status, mark_tweet_as_failed, TweetStatus
-from exceptions import RateLimitException, ServiceUnavailableException 
+from src.database import get_tweet_with_lock, update_tweet_status, mark_tweet_as_failed, TweetStatus
+from src.exceptions import RateLimitException, ServiceUnavailableException 
 logger = logging.getLogger(__name__)
 
 class Analyzer(ABC):

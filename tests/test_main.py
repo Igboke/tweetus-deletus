@@ -3,7 +3,7 @@ import os
 import pytest
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from tweets import get_tweet_details, Tweet
+from src.tweets import get_tweet_details, Tweet
 
 def test_open_file(loader,sample_tweet_archive_doc, sample_tweet_archive_content):
     content = loader.read_file(sample_tweet_archive_doc)

@@ -1,8 +1,8 @@
 import json
 import logging
-from database import init_db, add_tweet
-from tweets import get_tweet_details
-from exceptions import LoaderError, FileReadError, DataParseError
+from src.database import init_db, add_tweet
+from src.tweets import get_tweet_details
+from src.exceptions import LoaderError, FileReadError, DataParseError
 
 logger = logging.getLogger(__name__)
 

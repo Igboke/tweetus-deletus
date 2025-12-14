@@ -5,10 +5,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from database import init_db
-from tweets import Tweet
-from worker import Worker,GeminiAnalyzer
-from loader import TweetLoader
+from src.database import init_db
+from src.tweets import Tweet
+from src.worker import Worker,GeminiAnalyzer
+from src.loader import TweetLoader
 
 @pytest.fixture
 def sample_tweet_archive_content():

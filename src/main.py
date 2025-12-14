@@ -6,9 +6,12 @@ import os
 import sys
 import argparse
 from dotenv import load_dotenv
-from database import init_db,add_tweet, get_tweet_reports, TweetStatus
-from tweets import get_tweet_details
-from worker import Worker, GeminiAnalyzer, Analyzer
+from src.database import get_tweet_reports, TweetStatus
+from src.tweets import get_tweet_details
+from src.worker import Worker, GeminiAnalyzer, Analyzer
+from src.loader import TweetLoader
+from src.exceptions import LoaderError
+import csv
 
 load_dotenv()
 
@@ -18,61 +21,6 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
-
-def convert_rawdata_to_python_object(raw_data:str) -> list:
-    start_index = raw_data.find('[')
-    if start_index == -1:
-        logger.error("[CONVERT_RAWDATA_TO_PYTHON_OBJECT] JSON NOT FOUND ")
-        raise Exception("JSON NOT FOUND") from e
-
-    json_payload = raw_data[start_index : ]
-    try:
-        return json.loads(json_payload)
-    except json.JSONDecodeError as e:
-        logger.error("[CONVERT_RAWDATA_TO_PYTHON_OBJECT] JSON DECODE ERROR",exc_info=True)
-        raise Exception("JSON DECODE ERROR") from e
-        
-def open_file(file_path:str)->str:
-    try:
-        with open (file_path, 'r', encoding='utf-8') as tweet_doc:
-            raw_data = tweet_doc.read()
-            logger.debug("[OPEN_FILE] FILE SUCCESSFULLY PARSED")
-    except Exception as e:
-        logger.error(f"[OPEN_FILE] ERROR: {e}",exc_info=True)
-        raise Exception("CANNOT OPEN FILE") from e
-    return raw_data
-
-def load_tweets_into_db(file_path:str,x_handle:str,db_name:str):
-    try:
-        init_db(db_name)
-
-        raw_data = open_file(file_path)
-
-        tweets = convert_rawdata_to_python_object(raw_data)
-
-    except Exception as e:
-        logger.error(f"[LOAD_TWEETS_INTO_DB] ERROR: {e}",exc_info=True)
-        return
-    
-    for tweet in tweets:
-        item = tweet.get('tweet')
-
-        if item is None:
-            logger.error("[LOAD_TWEETS_INTO_DB] ERROR: NO TWEET FOUND")
-            raise Exception("POSSIBLE CHANGE TO TWEET STRUCTURE, NO TWEET FOUND")
-
-        try:
-            details = get_tweet_details(item)
-
-            tweet_url = details.tweet_url % x_handle
-
-            add_tweet(details,tweet_url,db_name)
-
-        except Exception as e:
-            logger.error(f"[LOAD_TWEETS_INTO_DB] ERROR: {e}",exc_info=True)
-            return
-    
-    logger.info("[LOAD_TWEETS_INTO_DB] TWEETS SUCCESSFULLY PARSED")
 
 def generate_report(db_name:str,output_path:str):
     try:
@@ -134,7 +82,12 @@ def main():
         
         logger.info(f"[MAIN] INFO: LOADING TWEETS FOR @{handle} INTO {args.db}")
 
-        load_tweets_into_db(args.file, handle, args.db)
+        try:
+            loader:TweetLoader = TweetLoader(args.db, handle)
+            loader.run(args.file)
+        except LoaderError as e:
+            logger.critical(f"[MAIN] LOADER FAILED: {e}")
+            sys.exit(1)
     
     elif args.command == "worker":
 
@@ -148,9 +101,9 @@ def main():
         forbidden_words:list[str] = args.forbidden.split(",")
 
         analyzer:Analyzer = GeminiAnalyzer(GEMINI_API_KEY,GEMINI_MODEL)
-        worker:Worker = Worker(analyzer) 
+        worker:Worker = Worker(analyzer, args.db) 
 
-        worker.run(forbidden_words, args.db, args.retry)
+        worker.run(forbidden_words, args.retry)
 
     elif args.command == "report":
         generate_report(args.db, args.output)
