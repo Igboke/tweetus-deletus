@@ -6,11 +6,11 @@ import os
 import sys
 import argparse
 from dotenv import load_dotenv
-from src.database import TweetStatus
+from src.database import TweetStatus, SQLiteTweetRepository, TweetRepository
 from src.worker import Worker, GeminiAnalyzer, Analyzer
 from src.loader import TweetLoader
 from src.exceptions import LoaderError
-from src.reporter import CSVReportGenerator
+from src.reporter import CSVReportGenerator, ReportGenerator
 import csv
 
 load_dotenv()
@@ -54,7 +54,8 @@ def main():
         logger.info(f"[MAIN] INFO: LOADING TWEETS FOR @{handle} INTO {args.db}")
 
         try:
-            loader:TweetLoader = TweetLoader(args.db, handle)
+            repo:TweetRepository = SQLiteTweetRepository(args.db)
+            loader:TweetLoader = TweetLoader(repo, handle)
             loader.run(args.file)
         except LoaderError as e:
             logger.critical(f"[MAIN] LOADER FAILED: {e}")
@@ -72,7 +73,8 @@ def main():
         forbidden_words:list[str] = args.forbidden.split(",")
 
         analyzer:Analyzer = GeminiAnalyzer(GEMINI_API_KEY,GEMINI_MODEL)
-        worker:Worker = Worker(analyzer, args.db) 
+        repo:TweetRepository = SQLiteTweetRepository(args.db)
+        worker:Worker = Worker(analyzer, repo) 
 
         worker.run(forbidden_words, args.retry)
 
@@ -83,7 +85,8 @@ def main():
             logger.error(f"[MAIN] INVALID STATUS: {args.status}")
             sys.exit(1)
 
-        reporter = CSVReportGenerator(args.db)
+        repo:TweetRepository = SQLiteTweetRepository(args.db)
+        reporter:ReportGenerator = CSVReportGenerator(repo)
         reporter.generate(status_enum, args.output)
         
    

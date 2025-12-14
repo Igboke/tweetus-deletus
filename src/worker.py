@@ -3,7 +3,7 @@ import time
 from abc import ABC, abstractmethod
 import google.generativeai as genai
 from google.api_core import exceptions
-from src.database import get_tweet_with_lock, update_tweet_status, mark_tweet_as_failed, TweetStatus
+from src.database import TweetStatus, TweetRepository
 from src.exceptions import RateLimitException, ServiceUnavailableException 
 logger = logging.getLogger(__name__)
 
@@ -46,9 +46,9 @@ class GeminiAnalyzer(Analyzer):
         return response.text
 
 class Worker:
-    def __init__(self,analyzer:Analyzer,db_name:str):
+    def __init__(self, analyzer: Analyzer, repo: TweetRepository):
         self.analyzer = analyzer
-        self.db_name = db_name
+        self.repo = repo
 
     def analyze_tweet(self,tweet:str,content:str)->str:
         try:
@@ -75,7 +75,7 @@ class Worker:
             raise Exception("CANNOT GET REASON") from e
 
     def run(self, forbidden_words:list, retry_failed:bool=False)->None:
-        logger.info(f"[RUN] Starting worker logic for DB: {self.db_name}")
+        logger.info("[RUN] Starting worker logic")
         count = 0
         while True:
             tweet = None
@@ -86,9 +86,9 @@ class Worker:
             
             try:
                 if retry_failed:
-                    tweet = get_tweet_with_lock(TweetStatus.FAILED, db_name=self.db_name)
+                    tweet = self.repo.get_tweet_with_lock(TweetStatus.FAILED)
                 else:
-                    tweet = get_tweet_with_lock(db_name=self.db_name)
+                    tweet = self.repo.get_tweet_with_lock()
 
                 if tweet is None:
                     logger.info("[RUN] NO PENDING TWEET FOUND")
@@ -98,11 +98,11 @@ class Worker:
                 reason = self.get_reason(response)
 
                 if response.startswith("YES"):
-                    update_tweet_status(tweet.tweet_id, TweetStatus.ANALYZED_DANGEROUS, reason, db_name=self.db_name)
+                    self.repo.update_status(tweet.tweet_id, TweetStatus.ANALYZED_DANGEROUS, reason)
                 elif response.startswith("NO"):
-                    update_tweet_status(tweet.tweet_id, TweetStatus.ANALYZED_SAFE, reason, db_name=self.db_name)
+                    self.repo.update_status(tweet.tweet_id, TweetStatus.ANALYZED_SAFE, reason)
                 else:
-                    update_tweet_status(tweet.tweet_id, TweetStatus.FAILED, reason, db_name=self.db_name)
+                    self.repo.update_status(tweet.tweet_id, TweetStatus.FAILED, reason)
 
                 logger.info("[RUN] TWEET ANALYZED")
                 count = 0
@@ -111,26 +111,26 @@ class Worker:
             except RateLimitException:
                 logger.warning("[RUN] RATE LIMIT HIT. SLEEPING FOR 60s")
                 if tweet:
-                    mark_tweet_as_failed(tweet.tweet_id, "Rate Limit Hit", db_name=self.db_name)
+                    self.repo.mark_failed(tweet.tweet_id, "Rate Limit Hit")
                 count += 1
                 time.sleep(60)
                 
             except ServiceUnavailableException:
                 logger.warning("[RUN] SERVICE UNAVAILABLE. SLEEPING FOR 30s")
                 if tweet:
-                    mark_tweet_as_failed(tweet.tweet_id, "Service Unavailable", db_name=self.db_name)
+                    self.repo.mark_failed(tweet.tweet_id, "Service Unavailable")
                 count += 1
                 time.sleep(30)
 
             except KeyboardInterrupt:
                 logger.info("[RUN] INTERRUPTED")
                 if tweet:
-                    mark_tweet_as_failed(tweet.tweet_id, "Interrupted by User", db_name=self.db_name)
+                    self.repo.mark_failed(tweet.tweet_id, "Interrupted by User")
                 break
 
             except Exception as e:
                 logger.error(f"[RUN] ERROR: {e}", exc_info=True)
                 if tweet:
-                    mark_tweet_as_failed(tweet.tweet_id, str(e), db_name=self.db_name)
+                    self.repo.mark_failed(tweet.tweet_id, str(e))
                 count += 1
                 time.sleep(17)

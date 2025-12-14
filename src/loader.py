@@ -1,19 +1,19 @@
 import json
 import logging
-from src.database import init_db, add_tweet
+from src.database import TweetRepository
 from src.tweets import get_tweet_details
 from src.exceptions import LoaderError, FileReadError, DataParseError
 
 logger = logging.getLogger(__name__)
 
 class TweetLoader:
-    def __init__(self, db_name: str, x_handle: str):
-        self.db_name = db_name
+    def __init__(self, repo: TweetRepository, x_handle: str):
+        self.repo = repo
         self.x_handle = x_handle
 
     def run(self, file_path: str) -> None:
         try:
-            init_db(self.db_name)
+            self.repo.initialize()
             
             raw_data = self.read_file(file_path)
             tweets = self.convert_rawdata_to_python_object(raw_data)
@@ -63,7 +63,7 @@ class TweetLoader:
             try:
                 details = get_tweet_details(item)
                 tweet_url = details.tweet_url % self.x_handle
-                add_tweet(details, tweet_url, self.db_name)
+                self.repo.add_tweet(details, tweet_url)
                 success_count += 1
             except Exception as e:
                 logger.error(f"[LOAD_INTO_DB] FAILED TO IMPORT TWEET: {e}", exc_info=True)

@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from src.database import init_db
+from src.database import SQLiteTweetRepository
 from src.tweets import Tweet
 from src.worker import Worker,GeminiAnalyzer
 from src.loader import TweetLoader
@@ -189,8 +189,13 @@ def sample_tweet_archive_doc_bad_json(tmp_path,sample_bad_tweet_archive_content)
 @pytest.fixture
 def db_path(tmp_path):
   db_path = tmp_path / "test_tweet.db"
-  init_db(db_path)
-  yield db_path
+  return str(db_path)
+
+@pytest.fixture
+def repo(db_path):
+    repo = SQLiteTweetRepository(db_path)
+    repo.initialize()
+    return repo
 
 @pytest.fixture
 def tweet():
@@ -214,10 +219,10 @@ def genai_set_up():
   return GeminiAnalyzer(api_key,model)
 
 @pytest.fixture
-def worker(genai_set_up,db_path):
-  return Worker(genai_set_up,db_path)
+def worker(genai_set_up, repo):
+  return Worker(genai_set_up, repo)
 
 @pytest.fixture
-def loader(db_path):
-  return TweetLoader(db_path,"test_handle")
+def loader(repo):
+  return TweetLoader(repo, "test_handle")
 

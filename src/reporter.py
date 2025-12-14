@@ -1,13 +1,13 @@
 import csv
 import logging
 from abc import ABC, abstractmethod
-from src.database import get_tweet_reports, TweetStatus
+from src.database import TweetStatus, TweetRepository
 
 logger = logging.getLogger(__name__)
 
 class ReportGenerator(ABC):
-    def __init__(self, db_name: str):
-        self.db_name = db_name
+    def __init__(self, repo: TweetRepository):
+        self.repo = repo
 
     @abstractmethod
     def generate(self, status: TweetStatus, output_path: str) -> None:
@@ -16,7 +16,7 @@ class ReportGenerator(ABC):
 class CSVReportGenerator(ReportGenerator):
     def generate(self, status: TweetStatus, output_path: str) -> None:
         try:
-            tweets = get_tweet_reports(status, db_name=self.db_name)
+            tweets = self.repo.get_reports(status)
             
             if not tweets:
                 logger.info(f"[GENERATE] NO TWEETS FOUND WITH STATUS {status.value} TO REPORT")
