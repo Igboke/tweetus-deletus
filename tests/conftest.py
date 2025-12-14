@@ -8,6 +8,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database import init_db
 from tweets import Tweet
 from worker import Worker,GeminiAnalyzer
+from loader import TweetLoader
 
 @pytest.fixture
 def sample_tweet_archive_content():
@@ -213,5 +214,10 @@ def genai_set_up():
   return GeminiAnalyzer(api_key,model)
 
 @pytest.fixture
-def worker(genai_set_up):
-  return Worker(genai_set_up)
+def worker(genai_set_up,db_path):
+  return Worker(genai_set_up,db_path)
+
+@pytest.fixture
+def loader(db_path):
+  return TweetLoader(db_path,"test_handle")
+
