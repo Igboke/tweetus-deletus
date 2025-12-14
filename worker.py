@@ -1,8 +1,17 @@
 import logging
+import time
 from abc import ABC, abstractmethod
 import google.generativeai as genai
+from google.api_core import exceptions
+from database import get_tweet_with_lock, update_tweet_status, mark_tweet_as_failed, TweetStatus
 
 logger = logging.getLogger(__name__)
+
+
+class RateLimitException(Exception):
+    pass
+class ServiceUnavailableException(Exception):
+    pass
 
 class Analyzer(ABC):
 
@@ -28,7 +37,17 @@ class GeminiAnalyzer(Analyzer):
     def analyze_tweet(self,tweet:str,content:str)->str:
         full_prompt = f"{self.prompt()}\n\nTWEET: {tweet}\n\nCONTENT: {content}"
 
-        response = self.model.generate_content(full_prompt)
+        try:
+            response = self.model.generate_content(full_prompt)
+        except exceptions.TooManyRequests as e:
+            logger.error("[ANALYZE_TWEET] RATE LIMIT EXCEEDED")
+            raise RateLimitException("RATE LIMIT EXCEEDED") from e
+        except exceptions.ServiceUnavailable as e:
+            logger.error("[ANALYZE_TWEET] SERVICE UNAVAILABLE")
+            raise ServiceUnavailableException("SERVICE UNAVAILABLE") from e
+        except Exception as e:
+            logger.error("[ANALYZE_TWEET] ERROR: {e}",exc_info=True)
+            raise Exception("ANALYZER ERROR") from e
 
         return response.text
 
@@ -41,6 +60,9 @@ class Worker:
             response = self.analyzer.analyze_tweet(tweet,content)
             logger.info("[ANALYZE_TWEET] TWEET ANALYZED")
             return response
+        except (RateLimitException, ServiceUnavailableException) as e:
+            logger.error("[ANALYZE_TWEET] ERROR: {e}",exc_info=True)
+            raise e
         except Exception as e:
             logger.error("[ANALYZE_TWEET] ERROR: {e}",exc_info=True)
             raise Exception("CANNOT ANALYZE TWEET") from e
@@ -56,3 +78,54 @@ class Worker:
         except Exception as e:
             logger.error("[GET_REASON] ERROR: {e}",exc_info=True)
             raise Exception("CANNOT GET REASON") from e
+
+    def run(self, forbidden_words:list, db_name:str, retry_failed:bool=False):
+        logger.info(f"[RUN] Starting worker logic for DB: {db_name}")
+        while True:
+            tweet = None
+            try:
+                if retry_failed:
+                    tweet = get_tweet_with_lock(TweetStatus.FAILED, db_name=db_name)
+                else:
+                    tweet = get_tweet_with_lock(db_name=db_name)
+
+                if tweet is None:
+                    logger.info("[RUN] NO PENDING TWEET FOUND")
+                    break
+
+                response = self.analyze_tweet(tweet.full_text, forbidden_words)
+                reason = self.get_reason(response)
+
+                if response.startswith("YES"):
+                    update_tweet_status(tweet.tweet_id, TweetStatus.ANALYZED_DANGEROUS, reason, db_name=db_name)
+                elif response.startswith("NO"):
+                    update_tweet_status(tweet.tweet_id, TweetStatus.ANALYZED_SAFE, reason, db_name=db_name)
+                else:
+                    update_tweet_status(tweet.tweet_id, TweetStatus.FAILED, reason, db_name=db_name)
+
+                logger.info("[RUN] TWEET ANALYZED")
+                time.sleep(15) 
+
+            except RateLimitException:
+                logger.warning("[RUN] RATE LIMIT HIT. SLEEPING FOR 60s")
+                if tweet:
+                    mark_tweet_as_failed(tweet.tweet_id, "Rate Limit Hit", db_name=db_name)
+                time.sleep(60)
+                
+            except ServiceUnavailableException:
+                logger.warning("[RUN] SERVICE UNAVAILABLE. SLEEPING FOR 30s")
+                if tweet:
+                    mark_tweet_as_failed(tweet.tweet_id, "Service Unavailable", db_name=db_name)
+                time.sleep(30)
+
+            except KeyboardInterrupt:
+                logger.info("[RUN] INTERRUPTED")
+                if tweet:
+                    mark_tweet_as_failed(tweet.tweet_id, "Interrupted by User", db_name=db_name)
+                break
+
+            except Exception as e:
+                logger.error(f"[RUN] ERROR: {e}", exc_info=True)
+                if tweet:
+                    mark_tweet_as_failed(tweet.tweet_id, str(e), db_name=db_name)
+                time.sleep(17)

@@ -6,7 +6,7 @@ import os
 import sys
 import argparse
 from dotenv import load_dotenv
-from database import init_db,add_tweet, update_tweet_status, get_tweet_with_lock, mark_tweet_as_failed, get_tweet_reports, TweetStatus
+from database import init_db,add_tweet, get_tweet_reports, TweetStatus
 from tweets import get_tweet_details
 from worker import Worker, GeminiAnalyzer, Analyzer
 
@@ -69,50 +69,10 @@ def load_tweets_into_db(file_path:str,x_handle:str,db_name:str):
             add_tweet(details,tweet_url,db_name)
 
         except Exception as e:
-            logger.error("[LOAD_TWEETS_INTO_DB] ERROR: {e}",exc_info=True)
+            logger.error(f"[LOAD_TWEETS_INTO_DB] ERROR: {e}",exc_info=True)
             return
     
     logger.info("[LOAD_TWEETS_INTO_DB] TWEETS SUCCESSFULLY PARSED")
-
-def start_worker(worker:Analyzer,forbidden_words:list,db_name:str,retry_failed:bool=False):
-    while True:
-        
-        try:
-            if retry_failed:
-                tweet = get_tweet_with_lock(TweetStatus.FAILED,db_name=db_name)
-            else:
-                tweet = get_tweet_with_lock(db_name=db_name)
-
-            if tweet is None:
-                logger.info("[START_WORKER] NO PENDING TWEET FOUND")
-                break
-
-            response = worker.analyze_tweet(tweet.full_text,forbidden_words)
-
-            reason = worker.get_reason(response)
-
-            if response.startswith("YES"):
-                update_tweet_status(tweet.tweet_id,TweetStatus.ANALYZED_DANGEROUS,reason,db_name=db_name)
-            elif response.startswith("NO"):
-                update_tweet_status(tweet.tweet_id,TweetStatus.ANALYZED_SAFE,reason,db_name=db_name)
-            else:
-                update_tweet_status(tweet.tweet_id,TweetStatus.FAILED,reason,db_name=db_name)
-
-            logger.info("[START_WORKER] WORKER COMPLETED ANALYSIS")
-            time.sleep(15)
-
-
-        except KeyboardInterrupt:
-            logger.info("[START_WORKER] INTERRUPTED")
-            if tweet:
-                mark_tweet_as_failed(tweet.tweet_id,"Interrupted by User",db_name=db_name)
-            break
-
-        except Exception as e:
-            logger.error("[START_WORKER] ERROR: {e}",exc_info=True)
-            mark_tweet_as_failed(tweet.tweet_id,str(e),db_name=db_name)
-            time.sleep(2)
-            continue 
 
 def generate_report(db_name:str,output_path:str):
     try:
@@ -166,7 +126,7 @@ def main():
     args = parser.parse_args()
 
     if args.command == "load":
-        handle = args.handle or os.getenv("X_HANDLE")
+        handle:str = args.handle or os.getenv("X_HANDLE")
 
         if not handle:
             logger.error("[MAIN] ERROR: NO HANDLE PROVIDED! SET X_HANDLE IN .env OR USE --handle")
@@ -178,19 +138,19 @@ def main():
     
     elif args.command == "worker":
 
-        GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-        GEMINI_MODEL = os.getenv("GEMINI_MODEL","gemini-2.5-flash")
+        GEMINI_API_KEY:str = os.getenv("GEMINI_API_KEY")
+        GEMINI_MODEL:str = os.getenv("GEMINI_MODEL","gemini-2.5-flash")
 
         if not GEMINI_API_KEY:
             logger.critical("[MAIN] ERROR: NO GEMINI API KEY SET IN .env")
             sys.exit(1)
 
-        forbidden_words = args.forbidden.split(",")
+        forbidden_words:list[str] = args.forbidden.split(",")
 
-        analyzer = GeminiAnalyzer(GEMINI_API_KEY,GEMINI_MODEL)
-        worker = Worker(analyzer) 
+        analyzer:Analyzer = GeminiAnalyzer(GEMINI_API_KEY,GEMINI_MODEL)
+        worker:Worker = Worker(analyzer) 
 
-        start_worker(worker, forbidden_words,args.db,args.retry)
+        worker.run(forbidden_words, args.db, args.retry)
 
     elif args.command == "report":
         generate_report(args.db, args.output)
