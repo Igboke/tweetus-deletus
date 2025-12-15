@@ -1,6 +1,5 @@
 import pytest
 
-
 def test_open_file(loader,sample_tweet_archive_doc, sample_tweet_archive_content):
     content = loader.read_file(sample_tweet_archive_doc)
     

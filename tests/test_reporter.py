@@ -3,7 +3,7 @@ import csv
 from src.database import TweetStatus, TweetReport
 from src.exceptions import DatabaseReadError
 
-def test_generate_report_success(mock_repo, generator, tmp_path):
+def test_generate_report_success(mock_repo, generator, output_csv_file):
     mock_reports = [
         TweetReport(
             tweet_id="19394939424", full_text="Safe tweet", status="ANALYZED_SAFE", 
@@ -18,33 +18,30 @@ def test_generate_report_success(mock_repo, generator, tmp_path):
     ]
     mock_repo.get_reports.return_value = mock_reports
     
-    output_file = tmp_path / "report.csv"
-    generator.generate(TweetStatus.ANALYZED_DANGEROUS, str(output_file))
+    generator.generate(TweetStatus.ANALYZED_DANGEROUS, output_csv_file)
     
     mock_repo.get_reports.assert_called_once_with(TweetStatus.ANALYZED_DANGEROUS)
-    assert output_file.exists()
+    assert output_csv_file.exists()
     
-    with open(output_file, 'r') as f:
+    with open(output_csv_file, 'r') as f:
         reader = csv.DictReader(f)
         rows = list(reader)
         assert len(rows) == 2
         assert rows[0]['tweet_id'] == "19394939424"
         assert rows[1]['analysis_reason'] == "Hate speech"
 
-def test_generate_report_empty(mock_repo, generator, tmp_path):
+def test_generate_report_empty(mock_repo, generator, output_csv_file):
     mock_repo.get_reports.return_value = []
     
-    output_file = tmp_path / "report_emptyfile.csv"
-    generator.generate(TweetStatus.FAILED, str(output_file))
+    generator.generate(TweetStatus.FAILED, output_csv_file)
     
     mock_repo.get_reports.assert_called_once_with(TweetStatus.FAILED)
-    assert not output_file.exists()
+    assert not output_csv_file.exists()
 
-def test_generate_report_db_error(mock_repo, generator, tmp_path):
-    mock_repo.get_reports.side_effect = DatabaseReadError("DB Fail")
+def test_generate_report_db_error(mock_repo, generator, output_csv_file):
+    mock_repo.get_reports.side_effect = DatabaseReadError("ERROR GETTING TWEET REPORTS")
     
-    output_file = tmp_path / "report_errorfile.csv"
     with pytest.raises(Exception) as e:
-        generator.generate(TweetStatus.PENDING, str(output_file))
+        generator.generate(TweetStatus.PENDING, output_csv_file)
     
-    assert "REPORT GENERATION FAILED" in str(e.value)
+    assert "ERROR READING FROM DATABASE" in str(e.value)

@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 import google.generativeai as genai
 from google.api_core import exceptions
 from src.database import TweetStatus, TweetRepository
-from src.exceptions import RateLimitException, ServiceUnavailableException 
+from src.exceptions import RateLimitException, ServiceUnavailableException, DatabaseError
 logger = logging.getLogger(__name__)
 
 class Analyzer(ABC):
@@ -142,6 +142,12 @@ class Worker:
                 if tweet:
                     self.repo.mark_failed(tweet.tweet_id, "Interrupted by User")
                 break
+
+            except DatabaseError:
+                logger.error("[RUN] DATABASE ERROR")
+                if tweet:
+                    self.repo.mark_failed(tweet.tweet_id, "Database Error")
+                time.sleep(17)
 
             except Exception as e:
                 logger.error(f"[RUN] ERROR: {e}", exc_info=True)

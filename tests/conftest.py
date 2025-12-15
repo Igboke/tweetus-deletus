@@ -433,5 +433,10 @@ def mock_repo():
     return MagicMock()
 
 @pytest.fixture
+def output_csv_file(tmp_path):
+  return tmp_path / "report.csv"
+
+
+@pytest.fixture
 def generator(mock_repo):
     return CSVReportGenerator(mock_repo)

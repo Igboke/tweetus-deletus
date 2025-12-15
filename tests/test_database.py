@@ -2,7 +2,7 @@ import pytest
 import sqlite3
 import os
 from unittest.mock import patch
-from src.database import SQLiteTweetRepository, TweetStatus, Tweet
+from src.database import SQLiteTweetRepository, TweetStatus
 from src.exceptions import DatabaseConnectionError, DatabaseWriteError, DatabaseReadError
 
 

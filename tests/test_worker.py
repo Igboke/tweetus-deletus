@@ -1,8 +1,5 @@
 import pytest
-import os
-
-from unittest.mock import patch, MagicMock
-from src.worker import Worker, RateLimitException, ServiceUnavailableException
+from unittest.mock import patch
 from src.database import TweetStatus
 
 def test_genai_response(tweet, mock_worker):
@@ -25,7 +22,7 @@ def test_invalid_reason(invalid_reason,mock_worker):
     
 def test_worker_run_success(mock_worker, tweet):
     mock_worker.repo.get_tweet_with_lock.side_effect = [tweet, None]
-    mock_worker.analyze_tweet = MagicMock(return_value="YES Dangerous")
+    mock_worker.analyzer.analyze_tweet.return_value = "YES Dangerous"
     
     with patch("time.sleep"), patch.object(mock_worker, "check_connectivity", return_value=True):
         mock_worker.run([], retry_failed=False)

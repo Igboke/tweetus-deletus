@@ -2,7 +2,7 @@ import json
 import logging
 from src.database import TweetRepository
 from src.tweets import get_tweet_details
-from src.exceptions import LoaderError, FileReadError, DataParseError
+from src.exceptions import LoaderError, FileReadError, DataParseError, DatabaseError
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +65,11 @@ class TweetLoader:
                 tweet_url = details.tweet_url % self.x_handle
                 self.repo.add_tweet(details, tweet_url)
                 success_count += 1
+
+            except DatabaseError:
+                logger.error("[LOAD_INTO_DB] DATABASE ERROR. FAILED TO ADD TWEET")
+                fail_count += 1
+                continue
             except Exception as e:
                 logger.error(f"[LOAD_INTO_DB] FAILED TO IMPORT TWEET: {e}", exc_info=True)
                 fail_count += 1

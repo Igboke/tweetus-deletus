@@ -2,6 +2,7 @@ import csv
 import logging
 from abc import ABC, abstractmethod
 from src.database import TweetStatus, TweetRepository
+from src.exceptions import DatabaseReadError
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,9 @@ class CSVReportGenerator(ReportGenerator):
                     
             logger.info(f"[GENERATE] REPORT GENERATED AT {output_path} WITH {len(tweets)} TWEETS.")
             
+        except DatabaseReadError as e:
+            logger.error(f"[GENERATE] ERROR: {e}", exc_info=True)
+            raise Exception("ERROR READING FROM DATABASE") from e
         except Exception as e:
             logger.error(f"[GENERATE] ERROR: {e}", exc_info=True)
             raise Exception("REPORT GENERATION FAILED") from e
