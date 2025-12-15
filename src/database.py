@@ -68,7 +68,6 @@ class SQLiteTweetRepository(TweetRepository):
             with sqlite3.connect(self.db_path) as connect:
                 cursor = connect.cursor()
                 cursor.execute(self.CREATE_TABLE_QUERY)
-                connect.commit()
         except Exception as e:
             logger.error(f"[INITIALIZE] ERROR: {e}", exc_info=True)
             raise Exception("CANNOT INITIALIZE DB") from e
@@ -215,7 +214,8 @@ class SQLiteTweetRepository(TweetRepository):
                         tweet_url=row["tweet_url"] or "",             
                         retry_count=row["retry_count"],
                         is_comment=bool(row["is_comment"]),
-                        is_retweet=bool(row["is_retweet"])
+                        is_retweet=bool(row["is_retweet"]),
+                        is_tweet=bool(row["is_tweet"])
                     ))
                 
                 logger.info(f"[GET_REPORTS] FETCHED {len(reports)} REPORTS")

@@ -25,6 +25,7 @@ class TweetReport:
     retry_count:int
     is_comment:bool
     is_retweet:bool
+    is_tweet:bool
 
 def get_tweet_details(tweet:dict) -> Tweet:
     """Extracts tweet details from a tweet dictionary."""
@@ -39,7 +40,7 @@ def get_tweet_details(tweet:dict) -> Tweet:
         logger.error("[GET_TWEET_DETAILS] ERROR: NO TWEET ID FOUND")
         raise Exception("NO TWEET ID FOUND")
 
-    is_comment:bool=True if tweet.get('in_reply_to_screen_name',False) else False
+    is_comment:bool=True if tweet.get('in_reply_to_screen_name') else False
 
     is_retweet:bool= True if full_text.startswith("RT") else False
 

@@ -1,6 +1,3 @@
-import json
-import time
-from dataclasses import dataclass
 import logging
 import os
 import sys
@@ -11,7 +8,6 @@ from src.worker import Worker, GeminiAnalyzer, Analyzer
 from src.loader import TweetLoader
 from src.exceptions import LoaderError
 from src.reporter import CSVReportGenerator, ReportGenerator
-import csv
 
 load_dotenv()
 
@@ -30,15 +26,15 @@ def main():
     load_parser = subparsers.add_parser("load", help="Load tweets from JS file to DB")
     load_parser.add_argument("file", help="Path to tweets.js file")
     load_parser.add_argument("--handle", help="Twitter handle (overrides .env)")
-    load_parser.add_argument("--db", default='tweets.db', help="Database file path")
+    load_parser.add_argument("--db", default='tweets.db', help="Database file path. Add Extensions if Needed")
 
     worker_parser = subparsers.add_parser("worker", help="Start worker to analyze tweets")
-    worker_parser.add_argument("--db", default='tweets.db', help="Database file path")
+    worker_parser.add_argument("--db", default='tweets.db', help="Database file path. Add Extensions if Needed")
     worker_parser.add_argument('forbidden', help='Comma-separated forbidden words')
     worker_parser.add_argument('--retry', action='store_true', help='Retry FAILED tweets')
 
     generate_report_parser = subparsers.add_parser("report", help="Generate report of tweets")
-    generate_report_parser.add_argument("--db", default='tweets.db', help="Database file path")
+    generate_report_parser.add_argument("--db", default='tweets.db', help="Database file path. Add Extensions if Needed")
     generate_report_parser.add_argument("--output", default='report.csv', help="Output file path")
     generate_report_parser.add_argument("--status", choices=[s.name for s in TweetStatus], default='ANALYZED_DANGEROUS', help="Filter tweets by status (default: ANALYZED_DANGEROUS)")
 

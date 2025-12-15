@@ -1,5 +1,6 @@
 import logging
 import time
+import socket
 from abc import ABC, abstractmethod
 import google.generativeai as genai
 from google.api_core import exceptions
@@ -67,15 +68,29 @@ class Worker:
             if response.startswith("YES"):
                 logger.info("[GET_REASON] REASON RETRIEVED")
                 return response.split("YES")[1].strip()
-            else:
+            elif response.startswith("NO"):
                 logger.info("[GET_REASON] REASON RETRIEVED")
                 return response.split("NO")[1].strip()
+            else:
+                raise ValueError("INVALID RESPONSE FORMAT")
         except Exception as e:
             logger.error("[GET_REASON] ERROR: {e}",exc_info=True)
             raise Exception("CANNOT GET REASON") from e
 
+    def check_connectivity(self):
+        try:
+            socket.create_connection(("8.8.8.8", 53), timeout=3)
+            return True
+        except OSError:
+            return False
+
     def run(self, forbidden_words:list, retry_failed:bool=False)->None:
         logger.info("[RUN] Starting worker logic")
+        
+        if not self.check_connectivity():
+            logger.critical("[RUN] NO INTERNET CONNECTION. EXITING.")
+            return
+
         count = 0
         while True:
             tweet = None

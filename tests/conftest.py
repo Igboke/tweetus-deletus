@@ -226,3 +226,103 @@ def worker(genai_set_up, repo):
 def loader(repo):
   return TweetLoader(repo, "test_handle")
 
+@pytest.fixture
+def tweet_dict():
+  return {
+      "edit_info" : {
+        "initial" : {
+          "editTweetIds" : [
+            "1994091455124787464"
+          ],
+          "editableUntil" : "2025-11-27T18:10:25.986Z",
+          "editsRemaining" : "5",
+          "isEditEligible" : False
+        }
+      },
+      "retweeted" : False,
+      "source" : r"<a href=\"http://twitter.com/download/android\" rel=\"nofollow\">Twitter for Android</a>",
+      "entities" : {
+        "hashtags" : [ ],
+        "symbols" : [ ],
+        "user_mentions" : [
+          {
+            "name" : "Alex Hormozi",
+            "screen_name" : "AlexHormozi",
+            "indices" : [
+              "3",
+              "15"
+            ],
+            "id_str" : "1417686048579018753",
+            "id" : "1417686048579018753"
+          }
+        ],
+        "urls" : [ ]
+      },
+      "display_text_range" : [
+        "0",
+        "140"
+      ],
+      "favorite_count" : "0",
+      "id_str" : "1994091455124787464",
+      "truncated" : False,
+      "retweet_count" : "0",
+      "id" : "1994091455124787464",
+      "created_at" : "Thu Nov 22 17:10:25 +1000 2025",
+      "favorited" : False,
+      "full_text" : "RT @AlexHormozi: Pro tip: If you're afraid to take the risk, write down in excruciating detail what you're actually afraid of having happen…",
+      "lang" : "en"
+    }
+
+@pytest.fixture
+def tweet_dict_no_id():
+  return {
+      "edit_info" : {
+        "initial" : {
+          "editTweetIds" : [
+            "1994091455124787464"
+          ],
+          "editableUntil" : "2025-11-27T18:10:25.986Z",
+          "editsRemaining" : "5",
+          "isEditEligible" : False
+        }
+      },
+      "retweeted" : False,
+      "source" : r"<a href=\"http://twitter.com/download/android\" rel=\"nofollow\">Twitter for Android</a>",
+      "entities" : {
+        "hashtags" : [ ],
+        "symbols" : [ ],
+        "user_mentions" : [
+          {
+            "name" : "Alex Hormozi",
+            "screen_name" : "AlexHormozi",
+            "indices" : [
+              "3",
+              "15"
+            ],
+            "id_str" : "1417686048579018753",
+            "id" : "1417686048579018753"
+          }
+        ],
+        "urls" : [ ]
+      },
+      "display_text_range" : [
+        "0",
+        "140"
+      ],
+      "favorite_count" : "0",
+      "id_str" : "1994091455124787464",
+      "truncated" : False,
+      "retweet_count" : "0",
+      "created_at" : "Thu Nov 22 17:10:25 +1000 2025",
+      "favorited" : False,
+      "full_text" : "RT @AlexHormozi: Pro tip: If you're afraid to take the risk, write down in excruciating detail what you're actually afraid of having happen…",
+      "lang" : "en"
+    }
+
+@pytest.fixture
+def valid_reason():
+  return "NO Content does not exist. It is analyzed safe"
+
+@pytest.fixture
+def invalid_reason():
+  return "MAYBE Content does not exist. It is analyzed safe or not"
