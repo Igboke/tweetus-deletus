@@ -12,3 +12,15 @@ class RateLimitException(Exception):
 
 class ServiceUnavailableException(Exception):
     pass
+
+class DatabaseError(Exception):
+    pass
+
+class DatabaseConnectionError(DatabaseError):
+    pass
+
+class DatabaseReadError(DatabaseError):
+    pass
+
+class DatabaseWriteError(DatabaseError):
+    pass

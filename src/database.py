@@ -3,6 +3,7 @@ import logging
 from abc import ABC, abstractmethod
 from enum import Enum
 from src.tweets import Tweet, TweetReport
+from src.exceptions import DatabaseConnectionError, DatabaseReadError, DatabaseWriteError
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +71,7 @@ class SQLiteTweetRepository(TweetRepository):
                 cursor.execute(self.CREATE_TABLE_QUERY)
         except Exception as e:
             logger.error(f"[INITIALIZE] ERROR: {e}", exc_info=True)
-            raise Exception("CANNOT INITIALIZE DB") from e
+            raise DatabaseConnectionError("CANNOT INITIALIZE DB") from e
 
     def add_tweet(self, tweet: Tweet, tweet_url: str = "") -> None:
         try:
@@ -89,7 +90,7 @@ class SQLiteTweetRepository(TweetRepository):
 
         except Exception as e:
             logger.error(f"[ADD_TWEET] ERROR: {e}", exc_info=True)
-            raise Exception("CANNOT ADD TWEET") from e
+            raise DatabaseWriteError("CANNOT ADD TWEET") from e
 
     def get_tweet(self, status: TweetStatus) -> Tweet | None:
         try:
@@ -115,7 +116,7 @@ class SQLiteTweetRepository(TweetRepository):
                 
         except Exception as e:
             logger.error(f"[GET_TWEET] ERROR: {e}", exc_info=True)
-            raise Exception("ERROR GETTING TWEET") from e
+            raise DatabaseReadError("ERROR GETTING TWEET") from e
 
     def update_status(self, tweet_id: str, status: TweetStatus, reason: str = "") -> bool:
         try:
@@ -132,7 +133,7 @@ class SQLiteTweetRepository(TweetRepository):
 
         except Exception as e:
             logger.error(f"[UPDATE_STATUS] ERROR: {e}", exc_info=True)
-            raise Exception("ERROR UPDATING TWEET STATUS") from e
+            raise DatabaseWriteError("ERROR UPDATING TWEET STATUS") from e
 
     def get_tweet_with_lock(self, status: TweetStatus = TweetStatus.PENDING) -> Tweet | None:
         try:
@@ -169,7 +170,7 @@ class SQLiteTweetRepository(TweetRepository):
 
         except Exception as e:
             logger.error(f"[GET_TWEET_WITH_LOCK] ERROR: {e}", exc_info=True)
-            raise Exception("ERROR GETTING TWEET WITH LOCK") from e
+            raise DatabaseReadError("ERROR GETTING TWEET WITH LOCK") from e
 
     def mark_failed(self, tweet_id: str, reason: str) -> bool:
         try:
@@ -189,7 +190,7 @@ class SQLiteTweetRepository(TweetRepository):
 
         except Exception as e:
             logger.error(f"[MARK_FAILED] ERROR: {e}", exc_info=True)
-            raise Exception("ERROR MARKING TWEET AS FAILED") from e
+            raise DatabaseWriteError("ERROR MARKING TWEET AS FAILED") from e
 
     def get_reports(self, status: TweetStatus) -> list[TweetReport]:
         try:
@@ -223,4 +224,4 @@ class SQLiteTweetRepository(TweetRepository):
                 
         except Exception as e:
             logger.error(f"[GET_REPORTS] ERROR: {e}", exc_info=True)
-            raise Exception("ERROR GETTING TWEET REPORTS") from e
+            raise DatabaseReadError("ERROR GETTING TWEET REPORTS") from e

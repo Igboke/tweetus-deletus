@@ -2,6 +2,9 @@ import pytest
 import sys
 import os
 from dotenv import load_dotenv
+from unittest.mock import MagicMock
+
+
 load_dotenv()
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -9,6 +12,7 @@ from src.database import SQLiteTweetRepository
 from src.tweets import Tweet
 from src.worker import Worker,GeminiAnalyzer
 from src.loader import TweetLoader
+from src.reporter import CSVReportGenerator
 
 @pytest.fixture
 def sample_tweet_archive_content():
@@ -326,3 +330,11 @@ def valid_reason():
 @pytest.fixture
 def invalid_reason():
   return "MAYBE Content does not exist. It is analyzed safe or not"
+
+@pytest.fixture
+def mock_repo():
+    return MagicMock()
+
+@pytest.fixture
+def generator(mock_repo):
+    return CSVReportGenerator(mock_repo)

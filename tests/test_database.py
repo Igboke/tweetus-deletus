@@ -1,6 +1,9 @@
+import pytest
 import sqlite3
 import os
-from src.database import TweetStatus, Tweet
+from unittest.mock import patch
+from src.database import SQLiteTweetRepository, TweetStatus, Tweet
+from src.exceptions import DatabaseConnectionError, DatabaseWriteError, DatabaseReadError
 
 
 def test_db_conftest_creates_db(repo, db_path):
@@ -78,6 +81,31 @@ def test_get_tweet_with_lock(repo, tweet, db_path):
     
     assert row is not None
     assert row["status"] == TweetStatus.PROCESSING.value
+
+def test_initialize_failure(tmp_path):
+    repo = SQLiteTweetRepository(str(tmp_path / "test.db"))
+    with patch("sqlite3.connect", side_effect=Exception("Connection failed")):
+        with pytest.raises(DatabaseConnectionError) as e:
+            repo.initialize()
+        assert "CANNOT INITIALIZE DB" in str(e.value)
+
+def test_add_tweet_failure(repo, tweet):
+    with patch("sqlite3.connect", side_effect=Exception("Insert failed")):
+        with pytest.raises(DatabaseWriteError) as e:
+            repo.add_tweet(tweet)
+        assert "CANNOT ADD TWEET" in str(e.value)
+
+def test_get_tweet_failure(repo):
+    with patch("sqlite3.connect", side_effect=Exception("Select failed")):
+        with pytest.raises(DatabaseReadError) as e:
+            repo.get_tweet(TweetStatus.PENDING)
+        assert "ERROR GETTING TWEET" in str(e.value)
+
+def test_update_status_failure(repo):
+    with patch("sqlite3.connect", side_effect=Exception("Update failed")):
+        with pytest.raises(DatabaseWriteError) as e:
+            repo.update_status("123", TweetStatus.FAILED)
+        assert "ERROR UPDATING TWEET STATUS" in str(e.value)
     
         
 
