@@ -10,3 +10,10 @@ wheels/
 .venv
 
 .env
+
+#database
+*.db
+
+#file
+tweets.js
+dummy.py
