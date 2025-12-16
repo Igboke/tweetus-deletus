@@ -85,7 +85,7 @@ class Worker:
             return False
 
     def run(self, forbidden_words:list, retry_failed:bool=False)->None:
-        logger.info("[RUN] Starting worker logic")
+        logger.info("[RUN] STARTING WORKER LOGIC")
         
         if not self.check_connectivity():
             logger.critical("[RUN] NO INTERNET CONNECTION. EXITING.")
